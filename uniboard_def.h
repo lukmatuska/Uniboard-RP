@@ -51,5 +51,6 @@
 //misc
 
 #define BUZZER_PIN 4
-#define LED_RGB 3
+#define LED_RGB_PIN 3
+#define NUM_LEDS 3
 

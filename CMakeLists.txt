@@ -47,7 +47,7 @@ pico_enable_stdio_usb(Uniboard-RP 1)
 add_subdirectory(onewire_library)
 
 # Add the standard library to the build
-target_link_libraries(Uniboard-RP hardware_i2c hardware_pio hardware_pwm hardware_adc hardware_gpio onewire_library pico_stdlib)
+target_link_libraries(Uniboard-RP hardware_i2c hardware_pio hardware_pwm hardware_adc hardware_gpio hardware_dma onewire_library pico_stdlib)
 
 # Add the standard include files to the build
 target_include_directories(Uniboard-RP PRIVATE

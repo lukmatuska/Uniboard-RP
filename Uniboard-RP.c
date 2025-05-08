@@ -7,6 +7,9 @@
 #include "hardware/adc.h"
 #include "hardware/gpio.h"
 #include "pico/binary_info.h"
+#include "hardware/pio.h"
+#include "hardware/clocks.h"
+#include "ws2812.pio.h"
 
 
 #include "uniboard_def.h"
@@ -14,6 +17,9 @@
 #include "onewire_library.h"    // onewire library functions
 #include "ds18b20.h"    
 #include "ow_rom.h"  
+
+
+#define IS_RGBW false
 
 
 
@@ -67,45 +73,28 @@ void i2c_write_byte(uint8_t val) {
     i2c_write_blocking(i2c_default, addr, &val, 1, false);
 #endif
 }
-/*
-void pirates(){
-    play_tone(BUZZER_PIN, A4, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, C5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, D5, 100);
-                    sleep_ms(200);
-                    play_tone(BUZZER_PIN, D5, 100);
-                    sleep_ms(200);
-                    
-                    play_tone(BUZZER_PIN, D5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, E5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, F5, 100);
-                    sleep_ms(200);
-                    play_tone(BUZZER_PIN, F5, 100);
-                    sleep_ms(200);
 
-                    play_tone(BUZZER_PIN, F5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, G5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, E5, 100);
-                    sleep_ms(200);
-                    play_tone(BUZZER_PIN, E5, 100);
-                    sleep_ms(200);
-
-                    play_tone(BUZZER_PIN, D5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, C5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, C5, 100);
-                    sleep_ms(50);
-                    play_tone(BUZZER_PIN, D5, 100);
-                    sleep_ms(350);
+static inline void put_pixel(PIO pio, uint sm, uint32_t pixel_grb) {
+    pio_sm_put_blocking(pio, sm, pixel_grb << 8u);
 }
-*/
+
+static inline uint32_t urgb_u32(uint8_t r, uint8_t g, uint8_t b) {
+    return
+            ((uint32_t) (r) << 8) |
+            ((uint32_t) (g) << 16) |
+            (uint32_t) (b);
+}
+
+static inline uint32_t urgb_b_u32(uint8_t r, uint8_t g, uint8_t b, uint8_t br) {
+    return
+            ((uint32_t) ((r*br)/255) << 8) |
+            ((uint32_t) ((g*br)/255) << 16) |
+            (uint32_t) ((b*br)/255);
+}
+
+
+
+
 void lcd_toggle_enable(uint8_t val) {
     // Toggle enable pin on LCD display
     // We cannot do this too quickly or things don't work
@@ -193,14 +182,8 @@ void play_tone(uint gpio, uint32_t freq, uint32_t duration_ms) { //  for buzzer
     pwm_set_enabled(slice_num, false);
 }
 
-void __not_in_flash_func(adc_capture)(uint16_t *buf, size_t count) {
-    adc_fifo_setup(true, false, 0, false, false);
-    adc_run(true);
-    for (size_t i = 0; i < count; i = i + 1)
-        buf[i] = adc_fifo_get_blocking();
-    adc_run(false);
-    adc_fifo_drain();
-}
+
+
 
 
 
@@ -259,6 +242,43 @@ void readTemp(OW ow, PIO pio, uint gpio) {
 
 }
 
+void pirates(){
+    play_tone(BUZZER_PIN, A4, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, C5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, D5, 100);
+    sleep_ms(200);
+    play_tone(BUZZER_PIN, D5, 100);
+    sleep_ms(200);
+    
+    play_tone(BUZZER_PIN, D5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, E5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, F5, 100);
+    sleep_ms(200);
+    play_tone(BUZZER_PIN, F5, 100);
+    sleep_ms(200);
+
+    play_tone(BUZZER_PIN, F5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, G5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, E5, 100);
+    sleep_ms(200);
+    play_tone(BUZZER_PIN, E5, 100);
+    sleep_ms(200);
+
+    play_tone(BUZZER_PIN, D5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, C5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, C5, 100);
+    sleep_ms(50);
+    play_tone(BUZZER_PIN, D5, 100);
+    sleep_ms(350);
+}
 
 
 int main()
@@ -281,67 +301,16 @@ int main()
 
 
 
-    PIO pio = pio0;
+    PIO pio_temp = pio0;
     uint gpio = ONEWIRE_PIN;
     OW ow;
-    uint offset;
-    /*
-    if (pio_can_add_program (pio, &onewire_program)) {
-        offset = pio_add_program (pio, &onewire_program);
+    uint offset_temp;
 
-        // claim a state machine and initialise a driver instance
-        if (ow_init (&ow, pio, offset, gpio)) {
-
-            // find and display 64-bit device addresses
-            int maxdevs = 10;
-            uint64_t romcode[maxdevs];
-            int num_devs = ow_romsearch (&ow, romcode, maxdevs, OW_SEARCH_ROM);
-
-            printf("Found %d devices\n", num_devs);      
-            for (int i = 0; i < num_devs; i += 1) {
-                printf("\t%d: 0x%llx\n", i, romcode[i]);
-            }
-            putchar ('\n');
-
-            while (num_devs > 0) {
-                printf("Cycle: %d\n", num_devs);
-                // start temperature conversion in parallel on all devices
-                // (see ds18b20 datasheet)
-                ow_reset (&ow);
-                ow_send (&ow, OW_SKIP_ROM);
-                ow_send (&ow, DS18B20_CONVERT_T);
-
-                // wait for the conversions to finish
-                while (ow_read(&ow) == 0);
-
-                // read the result from each device
-                for (int i = 0; i < num_devs; i += 1) {
-                    ow_reset (&ow);
-                    ow_send (&ow, OW_MATCH_ROM);
-                    for (int b = 0; b < 64; b += 8) {
-                        ow_send (&ow, romcode[i] >> b);
-                    }
-                    ow_send (&ow, DS18B20_READ_SCRATCHPAD);
-                    int16_t temp = 0;
-                    temp = ow_read (&ow) | (ow_read (&ow) << 8);
-                    char text[20];
-                    sprintf (text, "temp%d:%f", i, temp / 16.0);
-                    lcd_set_cursor(0, 0);
-                    lcd_string(text);
-
-                    
-                }
-                putchar ('\n');
-            }
-            
-        } else {
-            lcd_set_cursor(0, 0);
-        lcd_string("could not initialize driver");
-        }
-    } else {
-        lcd_set_cursor(0, 0);
-        lcd_string("could not add the program");
-    }*/
+    PIO pio_led;
+    uint sm;
+    uint offset_led;
+    pio_claim_free_sm_and_add_program_for_gpio_range(&ws2812_program, &pio_led, &sm, &offset_led, LED_RGB_PIN, 1, true);
+    ws2812_program_init(pio_led, sm, offset_led, LED_RGB_PIN, 800000, IS_RGBW);
 
 
     
@@ -351,8 +320,11 @@ int main()
         char text[20];
         uint32_t val = adc_read();
         sprintf (text, "pot%d   ", map(val, 0, 4096, 0, 255));
+        put_pixel(pio_led, sm, urgb_b_u32(255, 10, 10, map(val, 0, 4096, 0, 255)));
+        put_pixel(pio_led, sm, urgb_b_u32(10, 255, 10, map(val, 0, 4096, 0, 255)));
+        put_pixel(pio_led, sm, urgb_b_u32(10, 10, 255, map(val, 0, 4096, 0, 255)));
         lcd_string(text);
-        sleep_ms(10);
+        sleep_ms(1);
         //lcd_clear();
     }
 }
