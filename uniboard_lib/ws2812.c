@@ -37,6 +37,7 @@
 #error Attempting to use a pin>=32 on a platform that does not support it
 #endif
 
+
 static inline void put_pixel(PIO pio, uint sm, uint32_t pixel_grb) {
     pio_sm_put_blocking(pio, sm, pixel_grb << 8u);
 }
