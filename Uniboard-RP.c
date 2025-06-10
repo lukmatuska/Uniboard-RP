@@ -158,31 +158,36 @@ int main()
                 partGreen = map(readPot(POT1_ADC), 0, 4096, 255, 0);
                 partBlue = map(readPot(POT2_ADC), 0, 4096, 255, 0);
                 
+                
         }
         if(switches & (1 << 6)){
             mouse_dx = map(readPot(POT0_ADC), 0, 4096, 16, -16);
             mouse_dy = map(readPot(POT1_ADC), 0, 4096, -16, 16);
-            tud_task(); // tinyusb device task
+            
             hid_task(mouse_dx, mouse_dy);
         } else {
             mouse_dx = 0;
             mouse_dy = 0;
         }
 
-            
-            
-            //sprintf (text, "%d   ", temp_romcode);
         put_pixel(pio_led, sm, urgb_b_u32(partRed, partGreen, partBlue, brightness));
         put_pixel(pio_led, sm, urgb_b_u32(partRed, partGreen, partBlue, brightness));
         put_pixel(pio_led, sm, urgb_b_u32(partRed, partGreen, partBlue, brightness));
 
+        tud_task(); // tinyusb device task
+
+            //sprintf (text, "%d   ", temp_romcode);
+        
+
         uint32_t micros = time_us_32();
-        if(!(micros % 25)){
+        if(!(micros % 50)){
             lcd_set_cursor(0, 0);
             lcd_clear();
             sprintf (text, "x:%3d, y:%3d", mouse_dx, mouse_dy);
             lcd_string(text);
         }
+
+        sleep_ms(10);
 
 
 
